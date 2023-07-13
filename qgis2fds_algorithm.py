@@ -32,6 +32,7 @@ from qgis.core import (
 import os
 from .types import (
     utils,
+    FastFuels,
     FDSCase,
     Domain,
     OBSTTerrain,
@@ -59,6 +60,7 @@ DEFAULTS = {
     "nmesh": 1,
     "cell_size": None,
     "export_obst": True,
+    "export_FF": False
 }
 
 
@@ -331,6 +333,21 @@ class qgis2fdsAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(param)
         param.setFlags(param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
 
+
+        # Define parameter: export_FF
+
+        defaultValue, _ = project.readBoolEntry(
+            "qgis2fds", "export_FF", DEFAULTS["export_FF"]
+        )
+        param = QgsProcessingParameterBoolean(
+            "export_FF",
+            "Export canopy from FastFuels",
+            defaultValue=defaultValue,
+        )
+        self.addParameter(param)
+        param.setFlags(param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+
+
         # Output
 
         # param = QgsProcessingParameterFeatureSink(  # DEBUG FIXME
@@ -581,6 +598,12 @@ class qgis2fdsAlgorithm(QgsProcessingAlgorithm):
             )
         project.writeEntry("qgis2fds", "dem_layer", parameters.get("dem_layer"))
 
+        # Get parameter: export_FF
+
+        export_FF = self.parameterAsBool(parameters, "export_FF", context)
+        project.writeEntryBool("qgis2fds", "export_FF", export_FF)
+
+
         # Calc the interpolated DEM layer
 
         outputs["utm_dem_layer"] = algos.clip_and_interpolate_dem(
@@ -667,6 +690,28 @@ class qgis2fdsAlgorithm(QgsProcessingAlgorithm):
             cell_size=cell_size,
             nmesh=nmesh,
         )
+
+        # make sure wgs84_extent matches any updates to utm_extent
+        utm_to_wgs84_tr = QgsCoordinateTransform(utm_crs, wgs84_crs, project)
+        wgs84_extent=utm_to_wgs84_tr.transformBoundingBox(utm_extent)
+
+        # pass lower domain bounds to offset FastFuels fuelgrid
+        lower_XB=[utm_extent.xMinimum() - utm_origin.x() + 1.,
+                    utm_extent.yMinimum() - utm_origin.y() + 1.]
+
+        fastFuels = FastFuels(
+            feedback=feedback,
+            wgs84_extent=wgs84_extent,
+            utm_id=utm_crs.authid(),
+            fds_offset=lower_XB,
+            path=fds_path,
+            name=chid,
+            dx=cell_size,
+            dz=cell_size,
+        )
+
+        if feedback.isCanceled():
+            return {}
 
         fds_case = FDSCase(
             feedback=feedback,

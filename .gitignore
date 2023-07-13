@@ -41,3 +41,7 @@ deploy_qgis2fds
 *.fds
 *.gsf
 *.gcf
+
+# OS
+.DS_Store
+._*

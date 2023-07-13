@@ -82,13 +82,14 @@ def _create_raster_from_grid(
     feedback.pushInfo(f"interpolation_data: {interpolation_data}")  # FIXME
     alg_params = {
         "INTERPOLATION_DATA": interpolation_data,
-        "METHOD": 0,  # linear
+        # "METHOD": 0,  # linear
+        'DISTANCE_COEFFICIENT':2,
         "EXTENT": extent,
         "PIXEL_SIZE": pixel_size,
         "OUTPUT": output,
     }
     return processing.run(
-        "qgis:tininterpolation",
+        "qgis:idwinterpolation",
         alg_params,
         context=context,
         feedback=feedback,
