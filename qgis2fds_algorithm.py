@@ -695,15 +695,12 @@ class qgis2fdsAlgorithm(QgsProcessingAlgorithm):
         utm_to_wgs84_tr = QgsCoordinateTransform(utm_crs, wgs84_crs, project)
         wgs84_extent=utm_to_wgs84_tr.transformBoundingBox(utm_extent)
 
-        # pass lower domain bounds to offset FastFuels fuelgrid
-        lower_XB=[utm_extent.xMinimum() - utm_origin.x() + 1.,
-                    utm_extent.yMinimum() - utm_origin.y() + 1.]
-
         fastFuels = FastFuels(
             feedback=feedback,
             wgs84_extent=wgs84_extent,
             utm_id=utm_crs.authid(),
-            fds_offset=lower_XB,
+            utm_origin=utm_origin,
+            min_z=terrain.min_z,
             path=fds_path,
             name=chid,
             dx=cell_size,

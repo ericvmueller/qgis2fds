@@ -28,19 +28,24 @@ class FastFuels:
         feedback,
         wgs84_extent,
         utm_id,
-        fds_offset,
+        utm_origin,
+        min_z,
         path,
         name,
         dx,
         dz,
         pad=0
     ) -> None:
+
         self.feedback = feedback
         self.path = path
         self.name = name
-        self.extent = wgs84_extent
-        self.utm_id = utm_id
-        self.fds_offset = fds_offset
+        self.wgs84_bbox = [[[self.extent.xMinimum(), self.extent.yMinimum()],
+                            [self.extent.xMinimum(), self.extent.yMaximum()],
+                            [self.extent.xMaximum(), self.extent.yMaximum()],
+                            [self.extent.xMaximum(), self.extent.yMinimum()]]]
+        self.fds_crs_id = utm_id
+        self.fds_offset = [utm_origin.x(),utm_origin.y(),-min_z]
         self.dx = dx
         self.dz = dz
         self.pad = pad
@@ -60,10 +65,7 @@ class FastFuels:
           "type": "Feature",
           "geometry": {
             "type": "Polygon",
-            "coordinates":  [[[self.extent.xMinimum(), self.extent.yMinimum()],
-                            [self.extent.xMinimum(), self.extent.yMaximum()],
-                            [self.extent.xMaximum(), self.extent.yMaximum()],
-                            [self.extent.xMaximum(), self.extent.yMinimum()]]]
+            "coordinates":  self.wgs84_bbox
           },
           "properties": {
             "name": "WGS84 domain"
@@ -80,15 +82,9 @@ class FastFuels:
                                            description="treelist generated from FastFuels for qgis2fds")
 
         # Wait for a treelist to finish generating
-        feedback.pushInfo('Fetching FastFuels treelist...')
-        # feedback.pushInfo(dataset.id)
-        # treelistid=list_treelists('d6f766d28ed34c80aaabf28fbe088694')[0].id
-        # treelist=get_treelist(treelistid)
+        feedback.pushInfo('Fetching FastFuels treelist from dataset'+dataset.id+'...')
         treelist.wait_until_finished(verbose=True)
         treedata = treelist.get_data()
-        treedata = self._transformTreelist(treedata)
-        # update treelist
-        treelist_utm=treelist.update_data(treedata)
         # save to disc
         treedata.to_csv(self.path+'/'+self.name+"_treelist.csv")
 
@@ -99,11 +95,11 @@ class FastFuels:
                                             horizontal_resolution=self.dx,
                                             vertical_resolution=self.dz,
                                             border_pad=self.pad)
+        print(fuelgrid.to_json())
 
         # Wait for a fuelgrid to finish generating
         feedback.pushInfo('Creating fuelgrid from treelist...')
         fuelgrid.wait_until_finished(verbose=True)
-        feedback.pushInfo(str(fuelgrid.horizontal_resolution))
 
         # Download the Fuelgrid zarr data
         feedback.pushInfo('Downloading fuelgrid as zarr...')
@@ -112,15 +108,7 @@ class FastFuels:
         # Export the Fuelgrid zarr data to FDS inputs
         feedback.pushInfo('Writing binary bulk density files for FDS...')
         zroot = zarr.open(self.path+'/'+self.name+'_fuelgrid.zip', mode='r')
-        export_zarr_to_fds(zroot, self.path, self.fds_offset)
-
-    def _transformTreelist(self,treedata):
-        locs=gpd.points_from_xy(x=treedata['X_m'],y=treedata['Y_m'])
-        locs=gpd.GeoSeries(locs,crs='EPSG:5070').to_crs(self.utm_id)
-        treedata['X_m']=locs.x
-        treedata['Y_m']=locs.y
-        return treedata
-
+        export_zarr_to_fds(zroot, self.path, self.fds_offset, self.fds_crs_id,self.wgs84_bbox[0][0])
 
 
 
